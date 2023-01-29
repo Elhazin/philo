@@ -1,6 +1,6 @@
 NAME = philo
 
-Src = F_atoi.c philo.c
+Src = F_atoi.c main.c
 
 CFLAGS  = cc -Wall -Wextra -Werror
 

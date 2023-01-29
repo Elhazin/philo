@@ -6,18 +6,27 @@
 /*   By: abouzanb <abouzanb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/01/29 01:06:21 by abouzanb          #+#    #+#             */
-/*   Updated: 2023/01/29 17:11:40 by abouzanb         ###   ########.fr       */
+/*   Updated: 2023/01/29 23:39:58 by abouzanb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "philo.h"
 
-
-long the_time(void)
+long	the_time(void)
 {
-	struct timeval tv;
+	struct timeval	tv;
+
 	gettimeofday(&tv, NULL);
 	return ((tv.tv_sec * 1000) + (tv.tv_usec / 1000));
+}
+
+void ft_usleep(long time)
+{
+	long t;
+
+	t = the_time();
+	while ((the_time() - t) < time)
+		usleep(250);
 }
 
 int	parsing(char *av[])
@@ -25,7 +34,7 @@ int	parsing(char *av[])
 	int	i;
 	int	x;
 
-	i = 0;
+	i = 1;
 	while (av[i])
 	{
 		x = 0;
@@ -56,10 +65,9 @@ void	get_init(pthread_mutex_t *forks, t_philo *philo)
 	}
 }
 
-void	get_that(char *av[], pthread_mutex_t *forks, t_philo *philo)
+int	get_that(char *av[], pthread_mutex_t *forks, t_philo *philo)
 {
 	int	i;
-	int	x;
 
 	i = 0;
 	while (i < philo->nof)
@@ -74,8 +82,11 @@ void	get_that(char *av[], pthread_mutex_t *forks, t_philo *philo)
 			philo[i].id_left = 0;
 		else
 			philo[i].id_left = (i + 1);
+		if (philo[i].ttd == -1 || philo[i].tts == -1 || philo[i].tte == -1)
+			return (-1);
 		i++;
 	}
+	return (0);
 }
 
 int	initi(char *av[], pthread_mutex_t **forks, t_philo **philo)
@@ -87,19 +98,19 @@ int	initi(char *av[], pthread_mutex_t **forks, t_philo **philo)
 	if (parsing(av) == -1)
 		return (-1);
 	phi = ft_atoi(av[1]);
+	if (phi <= 0)
+		return (-1);
 	*philo = malloc(sizeof(t_philo) * phi);
 	*forks = malloc(sizeof(pthread_mutex_t) * phi);
 	(*philo)->nof = phi;
 	get_init(*forks, *philo);
-	get_that(av, *forks, *philo);
-	return  (0);
+	if (get_that(av, *forks, *philo) == -1)
+		return (-1);
+	return (0);
 }
 
 void	state_change(t_philo *str, char *state)
 {
-	long 			time;
-	struct timeval	tv;
-
 	pthread_mutex_lock(&str->print);
 	printf("%ld | philo %d %s\n", (the_time() - str->time), str->idn, state);
 	if (state[3] != 'd')
@@ -108,7 +119,6 @@ void	state_change(t_philo *str, char *state)
 
 void	*function(void *ptr)
 {
-	struct timeval	tv;
 	t_philo			*str;
 
 	str = ptr;
@@ -122,68 +132,66 @@ void	*function(void *ptr)
 		str->last_meal = the_time();
 		pthread_mutex_unlock(&str->save);
 		state_change(str, "is eating");
-		usleep(str->tte * 1000);
+		ft_usleep(str->tte);
 		pthread_mutex_unlock(&str->forks[str->id]);
 		pthread_mutex_unlock(&str->forks[str->id_left]);
 		state_change(str, "is sleeping");
-		usleep(str->tts * 1000);
+		ft_usleep(str->tts);
 		state_change(str, "is thinking");
-		usleep(10);
 	}	
 }
 
 void	ft_pthread_create(t_philo *philo)
 {
 	int		i;
-	long	time;
 	long	consttime;
-	struct timeval tv;
 
 	consttime = the_time();
 	i = 0;
 	while (i < philo->nof)
 	{
-		time = the_time();
 		philo[i].time = consttime;
-		philo[i].last_meal = time;
+		pthread_mutex_lock(&philo->save);
+		philo[i].last_meal = the_time();
+		pthread_mutex_unlock(&philo->save);
 		pthread_create(&philo[i].pid, NULL, function, &philo[i]);
 		usleep(100);
-		i++;	
+		i++;
 	}
 }
 
-void supervisore(t_philo *str)
+void	supervisore(t_philo *str)
 {
-	int  i;
-	
+	int	i;
+
 	i = 0;
 	while (1)
 	{
 		i = 0;
 		while (i < str->nof)
 		{
-			//pthread_mutex_lock(&str[i].save);
+			pthread_mutex_lock(&str[i].save);
 			if ((the_time() - str[i].last_meal) > str[i].ttd)
 			{
 				state_change(&str[i], "is died");
 				return ;
 			}
-			//pthread_mutex_unlock(&str[i].save);
+			pthread_mutex_unlock(&str[i].save);
 			i++;
 		}		
 	}
 }
-int main(int ac, char *av[])
+
+int	main(int ac, char *av[])
 {
 	pthread_mutex_t	*fork;
 	t_philo			*philo;
-	int				phi;
 
 	if (ac != 5 && ac != 6)
-		return (1);
+		return (0);
 	if (initi(av, &fork, &philo) == -1)
-		return (1);
+		return (0);
 	ft_pthread_create(philo);
 	supervisore(philo);
-	
+	return (0);
 }

@@ -26,8 +26,10 @@ typedef struct t_phil
 	pthread_mutex_t	save;
 	pthread_mutex_t	print;
 	int				id_left;
+	int				check;
+	int				all;
 	int				id;
-	int 			idn;
+	int				idn;
 	int				ttd;
 	int				tts;
 	int				tte;
