@@ -6,7 +6,7 @@
 /*   By: abouzanb <abouzanb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/01/29 01:06:21 by abouzanb          #+#    #+#             */
-/*   Updated: 2023/01/29 23:39:58 by abouzanb         ###   ########.fr       */
+/*   Updated: 2023/01/31 00:59:35 by abouzanb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,9 +20,9 @@ long	the_time(void)
 	return ((tv.tv_sec * 1000) + (tv.tv_usec / 1000));
 }
 
-void ft_usleep(long time)
+void	ft_usleep(long time)
 {
-	long t;
+	long	t;
 
 	t = the_time();
 	while ((the_time() - t) < time)
@@ -58,26 +58,40 @@ void	get_init(pthread_mutex_t *forks, t_philo *philo)
 	i = 0;
 	while (i < philo->nof)
 	{
-		pthread_mutex_init(&philo->print, NULL);
-		pthread_mutex_init(&philo->save, NULL);
 		pthread_mutex_init(&forks[i], NULL);
 		i++;
 	}
 }
 
-int	get_that(char *av[], pthread_mutex_t *forks, t_philo *philo)
+int	get_that(char *av[], pthread_mutex_t *forks, t_philo *philo, int ac)
 {
 	int	i;
+	pthread_mutex_t	print;
+	pthread_mutex_t	save;
+	pthread_mutex_t	tcheck;
 
 	i = 0;
+	pthread_mutex_init(&print, NULL);
+	pthread_mutex_init(&save, NULL);
+	pthread_mutex_init(&tcheck, NULL);
 	while (i < philo->nof)
 	{
 		philo[i].forks = forks;
 		philo[i].idn = i + 1;
 		philo[i].id = i;
 		philo[i].ttd = ft_atoi(av[2]);
+		philo[i].save = save;
+		philo[i].print = print;
+		philo[i].tcheck = tcheck;
 		philo[i].tte = ft_atoi(av[3]);
 		philo[i].tts = ft_atoi(av[4]);
+		if (ac == 6)
+		{
+			philo[i].check = 1;
+			philo[i].number_of_eat = ft_atoi(av[5]);
+		}
+		else
+			philo[i].check = -1;
 		if (i == (philo->nof - 1))
 			philo[i].id_left = 0;
 		else
@@ -89,7 +103,7 @@ int	get_that(char *av[], pthread_mutex_t *forks, t_philo *philo)
 	return (0);
 }
 
-int	initi(char *av[], pthread_mutex_t **forks, t_philo **philo)
+int	initi(char *av[], pthread_mutex_t **forks, t_philo **philo, int ac)
 {
 	int	phi;
 	int	i;
@@ -104,7 +118,7 @@ int	initi(char *av[], pthread_mutex_t **forks, t_philo **philo)
 	*forks = malloc(sizeof(pthread_mutex_t) * phi);
 	(*philo)->nof = phi;
 	get_init(*forks, *philo);
-	if (get_that(av, *forks, *philo) == -1)
+	if (get_that(av, *forks, *philo, ac) == -1)
 		return (-1);
 	return (0);
 }
@@ -117,6 +131,16 @@ void	state_change(t_philo *str, char *state)
 		pthread_mutex_unlock(&str->print);
 }
 
+void	do_help(t_philo *str)
+{
+	pthread_mutex_lock(&str->forks[str->id]);
+	state_change(str, "has taken a fork");
+	pthread_mutex_lock(&str->forks[str->id_left]);
+	state_change(str, "has taken another fork");
+	pthread_mutex_lock(&str->save);
+	str->last_meal = the_time();
+	pthread_mutex_unlock(&str->save);
+}
 void	*function(void *ptr)
 {
 	t_philo			*str;
@@ -124,15 +148,13 @@ void	*function(void *ptr)
 	str = ptr;
 	while (1)
 	{
-		pthread_mutex_lock(&str->forks[str->id]);
-		state_change(str, "has taken a fork");
-		pthread_mutex_lock(&str->forks[str->id_left]);
-		state_change(str, "has taken another fork");
-		pthread_mutex_lock(&str->save);
-		str->last_meal = the_time();
-		pthread_mutex_unlock(&str->save);
+		do_help(str);
 		state_change(str, "is eating");
 		ft_usleep(str->tte);
+		pthread_mutex_lock(&str->tcheck);
+		if (str->check == 1)
+			str->all++;
+		pthread_mutex_unlock(&str->tcheck);
 		pthread_mutex_unlock(&str->forks[str->id]);
 		pthread_mutex_unlock(&str->forks[str->id_left]);
 		state_change(str, "is sleeping");
@@ -163,8 +185,9 @@ void	ft_pthread_create(t_philo *philo)
 void	supervisore(t_philo *str)
 {
 	int	i;
-
+	int	all;
 	i = 0;
+	all = 0;
 	while (1)
 	{
 		i = 0;
@@ -177,8 +200,20 @@ void	supervisore(t_philo *str)
 				return ;
 			}
 			pthread_mutex_unlock(&str[i].save);
+			pthread_mutex_lock(&str[i].tcheck);
+			if (str[i].check == 1)
+			{
+				if (str[i].all == str[i].number_of_eat)
+					all++;
+				if (all == str[i].number_of_eat)
+					return ;
+			}
+			pthread_mutex_unlock(&str[i].tcheck);
+
+
 			i++;
-		}		
+		}
+		ft_usleep(10);	
 	}
 }
 
@@ -189,7 +224,7 @@ int	main(int ac, char *av[])
 
 	if (ac != 5 && ac != 6)
 		return (0);
-	if (initi(av, &fork, &philo) == -1)
+	if (initi(av, &fork, &philo, ac) == -1)
 		return (0);
 	ft_pthread_create(philo);
 	supervisore(philo);

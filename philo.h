@@ -25,9 +25,11 @@ typedef struct t_phil
 	pthread_mutex_t	*forks;
 	pthread_mutex_t	save;
 	pthread_mutex_t	print;
+	pthread_mutex_t	tcheck;
 	int				id_left;
 	int				check;
 	int				all;
+	int				number_of_eat;
 	int				id;
 	int				idn;
 	int				ttd;
